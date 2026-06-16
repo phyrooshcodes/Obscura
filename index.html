@@ -662,7 +662,7 @@
       n:               1,
       size:            aspect.w + 'x' + aspect.h,
       response_format: 'b64_json',
-      negative_prompt: negativePrompt || null,
+      negative_prompt: typeof negativePrompt === "string" ? negativePrompt : "",
       seed:            Number.isFinite(seedValue) ? seedValue : null,
     };
 
