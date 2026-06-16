@@ -34,8 +34,13 @@
     font-size:14px; cursor:pointer; font-family:inherit;
   }
   .panel-header-btn .left { display:flex; align-items:center; gap:8px; }
-  .status-dot { width:6px; height:6px; border-radius:50%; background:#5A3A30; flex-shrink:0; }
-  .status-dot.live { background:#7FA66B; }
+
+  /* ── status dot: 4 states ── */
+  .status-dot { width:6px; height:6px; border-radius:50%; background:#5A3A30; flex-shrink:0; transition:background .3s ease; }
+  .status-dot.live       { background:#7FA66B; }   /* connected  → green  */
+  .status-dot.generating { background:var(--gold); } /* generating → amber  */
+  .status-dot.error      { background:var(--accent); } /* offline   → red   */
+
   .chevron { width:16px; height:16px; color:var(--muted); transition:transform .15s ease; flex-shrink:0; }
   .chevron.open { transform:rotate(180deg); }
   .panel-body { padding:0 16px 16px; margin-top:-4px; display:none; }
@@ -50,13 +55,6 @@
   .input:focus, textarea.input:focus { outline:none; border-color:var(--accent); }
   textarea.input { resize:none; line-height:1.5; }
 
-  .key-row { display:flex; align-items:center; gap:8px; }
-  .icon-btn {
-    background:var(--panel2); border:1px solid var(--border); border-radius:6px; padding:8px;
-    color:var(--muted); cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0;
-  }
-  .icon-btn:hover { color:var(--text); }
-  .icon-btn svg { width:16px; height:16px; }
   .hint { font-size:12px; color:var(--faint); line-height:1.6; margin:8px 0 0; }
   .hint a { color:var(--gold); text-decoration:underline; }
 
@@ -99,7 +97,7 @@
   .generate-btn {
     background:var(--accent); color:var(--bg); border:none; border-radius:10px; padding:13px;
     font-size:14px; font-weight:500; display:flex; align-items:center; justify-content:center;
-    gap:8px; cursor:pointer; font-family:inherit;
+    gap:8px; cursor:pointer; font-family:inherit; width:100%;
   }
   .generate-btn:hover:not(:disabled) { background:var(--accent-hover); }
   .generate-btn:disabled { background:#5A3A30; color:var(--muted); cursor:not-allowed; }
@@ -125,8 +123,8 @@
   }
   .safelight-dot.show { display:block; animation:pulseGlow 1.5s ease-in-out infinite; }
   @keyframes pulseGlow {
-    0% { box-shadow:0 0 0 0 rgba(232,73,44,.55); }
-    70% { box-shadow:0 0 0 9px rgba(232,73,44,0); }
+    0%   { box-shadow:0 0 0 0 rgba(232,73,44,.55); }
+    70%  { box-shadow:0 0 0 9px rgba(232,73,44,0); }
     100% { box-shadow:0 0 0 0 rgba(232,73,44,0); }
   }
 
@@ -140,8 +138,8 @@
   .develop-wrap { position:relative; overflow:hidden; border-radius:6px; max-width:100%; }
   .develop-wrap img { display:block; max-width:100%; max-height:560px; border-radius:6px; animation:developIn 1s ease-out; }
   @keyframes developIn {
-    0% { opacity:0; filter:brightness(1.8) contrast(.55) saturate(0); }
-    55% { opacity:1; }
+    0%   { opacity:0; filter:brightness(1.8) contrast(.55) saturate(0); }
+    55%  { opacity:1; }
     100% { opacity:1; filter:brightness(1) contrast(1) saturate(1); }
   }
   .develop-wrap::after {
@@ -188,6 +186,7 @@
 
   .site-footer { margin-top:40px; padding-top:24px; border-top:1px solid var(--border); }
   .site-footer p { font-size:12px; color:var(--faint); line-height:1.6; max-width:600px; margin:0; }
+  .site-footer code { font-family:'IBM Plex Mono',monospace; color:var(--muted); }
 
   .spin { animation:spin 1s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
@@ -218,14 +217,8 @@
             <svg class="chevron open" id="connectionChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
           <div class="panel-body open" id="connectionBody">
-            <label class="field-label">NVIDIA API key</label>
-            <div class="key-row">
-              <input type="password" id="apiKeyInput" class="input" placeholder="nvapi-••••••••••••••••" style="font-family:'IBM Plex Mono',monospace;" />
-              <button class="icon-btn" id="toggleKeyVisibility" aria-label="Show key">
-                <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
-              </button>
-            </div>
-            <p class="hint">Kept only in this tab's memory — never saved or sent anywhere but directly to NVIDIA. Get a key at <a href="https://build.nvidia.com/qwen/qwen-image" target="_blank" rel="noreferrer">build.nvidia.com</a>.</p>
+            <span class="field-label" id="connectionLabel">Checking backend…</span>
+            <p class="hint">All generation requests are routed through the Obscura backend. No API keys are required in the browser.</p>
           </div>
         </div>
 
@@ -279,8 +272,8 @@
           </div>
         </div>
 
-        <!-- Generate -->
-        <button class="generate-btn" id="generateBtn">
+        <!-- Generate — starts disabled until health check passes -->
+        <button class="generate-btn" id="generateBtn" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>
           <span id="generateLabel">Generate</span>
         </button>
@@ -304,7 +297,7 @@
 
           <div class="loading-state" id="loadingState" style="display:none;">
             <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-9-9"/></svg>
-            <p class="loading-label">exposing the print…</p>
+            <p class="loading-label" id="loadingLabel">Preparing chemicals…</p>
           </div>
 
           <div class="develop-wrap" id="imageWrap" style="display:none;">
@@ -338,28 +331,38 @@
     </div>
 
     <footer class="site-footer">
-      <p>Calls go straight from this browser tab to NVIDIA's hosted Qwen-Image endpoint. If generation fails immediately with a network error rather than an API error message, it's likely a CORS restriction on direct browser calls — routing the request through a small backend proxy resolves that.</p>
+      <p>All generation requests are proxied through the Obscura backend at <code>POST /generate</code> — the frontend never handles API credentials or communicates with NVIDIA directly. If the backend is unavailable the generate button is disabled automatically.</p>
     </footer>
   </div>
 
 <script>
+  // ─────────────────────────────────────────────
+  //  Configuration
+  // ─────────────────────────────────────────────
+  const API_BASE = location.hostname === 'localhost'
+    ? 'http://localhost:8000'
+    : 'https://YOUR_BACKEND_DOMAIN';
+
+  // ─────────────────────────────────────────────
+  //  Constants
+  // ─────────────────────────────────────────────
   const ASPECTS = [
-    { id:'1:1', label:'Square', w:1328, h:1328, bw:22, bh:22 },
-    { id:'4:3', label:'Landscape', w:1472, h:1104, bw:26, bh:19.5 },
-    { id:'3:4', label:'Portrait', w:1104, h:1472, bw:16.5, bh:22 },
-    { id:'16:9', label:'Widescreen', w:1664, h:928, bw:28, bh:15.75 },
-    { id:'9:16', label:'Story', w:928, h:1664, bw:12.4, bh:22 },
+    { id:'1:1',  label:'Square',     w:1328, h:1328, bw:22,   bh:22    },
+    { id:'4:3',  label:'Landscape',  w:1472, h:1104, bw:26,   bh:19.5  },
+    { id:'3:4',  label:'Portrait',   w:1104, h:1472, bw:16.5, bh:22    },
+    { id:'16:9', label:'Widescreen', w:1664, h:928,  bw:28,   bh:15.75 },
+    { id:'9:16', label:'Story',      w:928,  h:1664, bw:12.4, bh:22    },
   ];
 
   const STYLE_PRESETS = [
-    { id:'none', label:'None', modifier:'' },
-    { id:'photo', label:'Photographic', modifier:'photographic, natural lighting, fine detail, shot on a 50mm lens' },
-    { id:'noir', label:'Film noir', modifier:'black and white film noir, dramatic shadows, heavy grain, high contrast' },
-    { id:'watercolor', label:'Watercolor', modifier:'soft watercolor painting, delicate washes, visible paper texture' },
-    { id:'anime', label:'Anime', modifier:'anime illustration, clean line art, vibrant cel shading' },
-    { id:'3d', label:'3D render', modifier:'octane render, cinematic three-quarter lighting, soft studio shadows' },
-    { id:'cyberpunk', label:'Cyberpunk', modifier:'cyberpunk, neon-lit, dense futuristic city, moody atmosphere' },
-    { id:'oil', label:'Oil painting', modifier:'oil painting, visible brushwork, rich texture, classical composition' },
+    { id:'none',       label:'None',          modifier:'' },
+    { id:'photo',      label:'Photographic',  modifier:'photographic, natural lighting, fine detail, shot on a 50mm lens' },
+    { id:'noir',       label:'Film noir',     modifier:'black and white film noir, dramatic shadows, heavy grain, high contrast' },
+    { id:'watercolor', label:'Watercolor',    modifier:'soft watercolor painting, delicate washes, visible paper texture' },
+    { id:'anime',      label:'Anime',         modifier:'anime illustration, clean line art, vibrant cel shading' },
+    { id:'3d',         label:'3D render',     modifier:'octane render, cinematic three-quarter lighting, soft studio shadows' },
+    { id:'cyberpunk',  label:'Cyberpunk',     modifier:'cyberpunk, neon-lit, dense futuristic city, moody atmosphere' },
+    { id:'oil',        label:'Oil painting',  modifier:'oil painting, visible brushwork, rich texture, classical composition' },
   ];
 
   const SURPRISE_PROMPTS = [
@@ -375,103 +378,318 @@
     "A mountain teahouse wrapped in cloud, lanterns swaying in the wind",
   ];
 
+  const LOADING_MESSAGES = [
+    'Preparing chemicals…',
+    'Exposing negative…',
+    'Developing print…',
+    'Fixing image…',
+    'Washing print…',
+  ];
+
+  // ─────────────────────────────────────────────
+  //  State
+  // ─────────────────────────────────────────────
   const state = {
-    showKey:false,
-    styleId:'none',
-    aspectId:'1:1',
-    isGenerating:false,
-    current:null,
-    history:[],
+    styleId:          'none',
+    aspectId:         '1:1',
+    isGenerating:     false,
+    backendAvailable: false,
+    current:          null,
+    history:          [],
   };
 
+  let loadingInterval = null;
+  let loadingMsgIdx   = 0;
+
+  // ─────────────────────────────────────────────
+  //  Utility
+  // ─────────────────────────────────────────────
   const $ = (id) => document.getElementById(id);
 
-  // ---- Connection panel ----
-  $('connectionToggle').addEventListener('click', () => {
-    $('connectionBody').classList.toggle('open');
-    $('connectionChevron').classList.toggle('open');
-  });
-  $('apiKeyInput').addEventListener('input', () => {
-    $('statusDot').classList.toggle('live', $('apiKeyInput').value.trim().length > 0);
-  });
-  $('toggleKeyVisibility').addEventListener('click', () => {
-    state.showKey = !state.showKey;
-    $('apiKeyInput').type = state.showKey ? 'text' : 'password';
-    $('eyeIcon').innerHTML = state.showKey
-      ? '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/><line x1="3" y1="3" x2="21" y2="21"/>'
-      : '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>';
-  });
-
-  // ---- Prompt ----
-  $('promptInput').addEventListener('input', () => {
-    $('charCount').textContent = $('promptInput').value.length + ' chars';
-  });
-  $('surpriseBtn').addEventListener('click', () => {
-    const pick = SURPRISE_PROMPTS[Math.floor(Math.random() * SURPRISE_PROMPTS.length)];
-    $('promptInput').value = pick;
-    $('charCount').textContent = pick.length + ' chars';
-  });
-
-  // ---- Style chips ----
-  const styleChipsEl = $('styleChips');
-  STYLE_PRESETS.filter(s => s.id !== 'none').forEach((s) => {
-    const btn = document.createElement('button');
-    btn.className = 'chip';
-    btn.textContent = s.label;
-    btn.dataset.id = s.id;
-    btn.addEventListener('click', () => {
-      state.styleId = (state.styleId === s.id) ? 'none' : s.id;
-      renderStyleChips();
-    });
-    styleChipsEl.appendChild(btn);
-  });
-  function renderStyleChips() {
-    [...styleChipsEl.children].forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.id === state.styleId);
-    });
-  }
-
-  // ---- Aspect swatches ----
-  const aspectRowEl = $('aspectRow');
-  ASPECTS.forEach((a) => {
-    const btn = document.createElement('button');
-    btn.className = 'aspect-swatch';
-    btn.dataset.id = a.id;
-    btn.title = a.label + ' · ' + a.w + '×' + a.h;
-    btn.innerHTML = '<span class="aspect-box" style="width:' + a.bw + 'px;height:' + a.bh + 'px;"></span><span class="aspect-id">' + a.id + '</span>';
-    btn.addEventListener('click', () => {
-      state.aspectId = a.id;
-      renderAspectRow();
-    });
-    aspectRowEl.appendChild(btn);
-  });
-  function renderAspectRow() {
-    [...aspectRowEl.children].forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.id === state.aspectId);
-    });
-  }
-  renderStyleChips();
-  renderAspectRow();
-
-  // ---- Advanced panel ----
-  $('advancedToggle').addEventListener('click', () => {
-    $('advancedBody').classList.toggle('open');
-    $('advancedChevron').classList.toggle('open');
-  });
-  $('rollSeedBtn').addEventListener('click', () => {
-    $('seedInput').value = Math.floor(Math.random() * 1000000000);
-  });
-
-  // ---- Error banner ----
-  function setError(msg) {
+  // ─────────────────────────────────────────────
+  //  Error banner
+  // ─────────────────────────────────────────────
+  function showError(msg) {
     $('errorText').textContent = msg;
     $('errorBanner').classList.add('show');
   }
+
   function clearError() {
     $('errorBanner').classList.remove('show');
   }
 
-  // ---- Copy / Download ----
+  // ─────────────────────────────────────────────
+  //  Connection status
+  //  status: 'connected' | 'generating' | 'disconnected'
+  // ─────────────────────────────────────────────
+  function updateConnectionStatus(status) {
+    const dot   = $('statusDot');
+    const label = $('connectionLabel');
+    dot.className = 'status-dot';               // reset all modifier classes
+    switch (status) {
+      case 'connected':
+        dot.classList.add('live');
+        label.textContent = 'Backend connected';
+        break;
+      case 'generating':
+        dot.classList.add('generating');
+        label.textContent = 'Generating image…';
+        break;
+      case 'disconnected':
+      default:
+        dot.classList.add('error');
+        label.textContent = 'Backend unavailable';
+    }
+  }
+
+  // Keep the generate button in sync with current state.
+  function syncButtonState() {
+    $('generateBtn').disabled = !state.backendAvailable || state.isGenerating;
+  }
+
+  // ─────────────────────────────────────────────
+  //  Health check
+  // ─────────────────────────────────────────────
+  async function checkBackend() {
+    // Never clobber the generating indicator mid-run.
+    if (state.isGenerating) return;
+
+    try {
+      const controller = new AbortController();
+      const timeout    = setTimeout(() => controller.abort(), 5000);
+      const res        = await fetch(`${API_BASE}/health`, { signal: controller.signal });
+      clearTimeout(timeout);
+
+      if (res.ok) {
+        state.backendAvailable = true;
+        if (!state.isGenerating) updateConnectionStatus('connected');
+        syncButtonState();
+        return true;
+      }
+      throw new Error('unhealthy');
+    } catch {
+      state.backendAvailable = false;
+      if (!state.isGenerating) updateConnectionStatus('disconnected');
+      syncButtonState();
+      return false;
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  //  Loading message rotation
+  // ─────────────────────────────────────────────
+  function startLoadingMessages() {
+    loadingMsgIdx = 0;
+    $('loadingLabel').textContent = LOADING_MESSAGES[0];
+    loadingInterval = setInterval(() => {
+      loadingMsgIdx = (loadingMsgIdx + 1) % LOADING_MESSAGES.length;
+      $('loadingLabel').textContent = LOADING_MESSAGES[loadingMsgIdx];
+    }, 2200);
+  }
+
+  function stopLoadingMessages() {
+    if (loadingInterval) {
+      clearInterval(loadingInterval);
+      loadingInterval = null;
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  //  Canvas rendering
+  // ─────────────────────────────────────────────
+  function renderCanvas() {
+    const placeholder = $('placeholderState');
+    const loading     = $('loadingState');
+    const imageWrap   = $('imageWrap');
+    const safelight   = $('safelightDot');
+
+    safelight.classList.toggle('show', state.isGenerating);
+
+    if (state.isGenerating && !state.current) {
+      placeholder.style.display = 'none';
+      loading.style.display     = 'block';
+      imageWrap.style.display   = 'none';
+    } else if (state.current) {
+      placeholder.style.display = 'none';
+      loading.style.display     = 'none';
+      imageWrap.style.display   = 'block';
+      imageWrap.classList.toggle('dimmed', state.isGenerating);
+    } else {
+      placeholder.style.display = 'block';
+      loading.style.display     = 'none';
+      imageWrap.style.display   = 'none';
+    }
+  }
+
+  function renderMeta() {
+    if (!state.current) { $('metaRow').classList.remove('show'); return; }
+    $('metaRow').classList.add('show');
+    $('metaSize').textContent = state.current.sizeLabel;
+    $('metaSeed').textContent = 'seed ' + state.current.seedLabel;
+    $('metaTime').textContent = state.current.time;
+  }
+
+  function renderFilmstrip() {
+    const section = $('filmstripSection');
+    const track   = $('filmstripTrack');
+    if (state.history.length === 0) { section.classList.remove('show'); return; }
+    section.classList.add('show');
+    track.innerHTML = '';
+    state.history.forEach((item) => {
+      const btn = document.createElement('button');
+      btn.className = 'film-thumb' + (state.current && state.current.id === item.id ? ' active' : '');
+      btn.title = item.prompt;
+      const img = document.createElement('img');
+      img.src   = item.src;
+      img.alt   = item.prompt;
+      btn.appendChild(img);
+      btn.addEventListener('click', () => { state.current = item; showImage(item, false); });
+      track.appendChild(btn);
+    });
+  }
+
+  function showImage(item, animate) {
+    const img  = $('currentImg');
+    img.src    = item.src;
+    img.alt    = item.prompt;
+    const wrap = $('imageWrap');
+    if (animate) {
+      wrap.classList.remove('develop-wrap');
+      void wrap.offsetWidth;             // force reflow to restart animation
+      wrap.classList.add('develop-wrap');
+    }
+    renderCanvas();
+    renderMeta();
+    renderFilmstrip();
+  }
+
+  // ─────────────────────────────────────────────
+  //  Generate state management
+  // ─────────────────────────────────────────────
+  function setGenerating(isGenerating) {
+    state.isGenerating = isGenerating;
+    syncButtonState();
+    $('generateLabel').textContent = isGenerating ? 'Developing…' : 'Generate';
+
+    // Swap the button icon between spinner and logo mark
+    const btnIcon = $('generateBtn').querySelector('svg');
+    if (btnIcon) {
+      btnIcon.outerHTML = isGenerating
+        ? '<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-9-9"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>';
+    }
+
+    if (isGenerating) {
+      startLoadingMessages();
+      updateConnectionStatus('generating');
+    } else {
+      stopLoadingMessages();
+      updateConnectionStatus(state.backendAvailable ? 'connected' : 'disconnected');
+    }
+
+    renderCanvas();
+  }
+
+  // ─────────────────────────────────────────────
+  //  Prompt builder
+  // ─────────────────────────────────────────────
+  function buildFullPrompt() {
+    const base = $('promptInput').value.trim();
+    if (!base) return '';
+    const preset = STYLE_PRESETS.find((s) => s.id === state.styleId);
+    return preset && preset.modifier ? base + ', ' + preset.modifier : base;
+  }
+
+  // ─────────────────────────────────────────────
+  //  Generate
+  // ─────────────────────────────────────────────
+  async function generateImage() {
+    if (state.isGenerating) return;
+    clearError();
+
+    if (!state.backendAvailable) {
+      showError('Backend unavailable. Start the Obscura backend and try again.');
+      return;
+    }
+
+    const fullPrompt = buildFullPrompt();
+    if (!fullPrompt) {
+      showError('Describe what you want to see first.');
+      return;
+    }
+
+    const aspect         = ASPECTS.find((a) => a.id === state.aspectId) || ASPECTS[0];
+    const negativePrompt = $('negativePromptInput').value.trim();
+    const seed           = $('seedInput').value.trim();
+
+    const body = {
+      model:           'qwen/qwen-image',
+      prompt:          fullPrompt,
+      n:               1,
+      size:            aspect.w + 'x' + aspect.h,
+      response_format: 'b64_json',
+    };
+    if (negativePrompt) body.negative_prompt = negativePrompt;
+    if (seed)           body.seed            = Number(seed);
+
+    setGenerating(true);
+    try {
+      const controller = new AbortController();
+      const timeoutId  = setTimeout(() => controller.abort(), 120000); // 2 min
+
+      const res = await fetch(`${API_BASE}/generate`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+        signal:  controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        let detail = res.statusText;
+        try {
+          const errJson = await res.json();
+          detail = (errJson && (errJson.detail || (errJson.error && errJson.error.message))) || JSON.stringify(errJson);
+        } catch { /* swallow parse error, keep status text */ }
+        throw new Error(res.status + ' — ' + detail);
+      }
+
+      const data = await res.json();
+      const b64  = data?.data?.[0]?.b64_json;
+      if (!b64) throw new Error('The backend responded without image data.');
+
+      const item = {
+        id:        Date.now(),
+        src:       'data:image/png;base64,' + b64,
+        prompt:    fullPrompt,
+        sizeLabel: aspect.w + '×' + aspect.h,
+        seedLabel: body.seed !== undefined ? String(body.seed) : 'auto',
+        time:      new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }),
+      };
+      state.history = [item, ...state.history].slice(0, 16);
+      state.current = item;
+      showImage(item, true);
+
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        showError('Network timeout. Please try again.');
+      } else if (err instanceof TypeError) {
+        // Network-level failure — assume backend went away
+        state.backendAvailable = false;
+        syncButtonState();
+        updateConnectionStatus('disconnected');
+        showError('Backend unavailable. Start the Obscura backend and try again.');
+      } else {
+        showError('Image generation failed. ' + (err.message || 'NVIDIA returned an error.'));
+      }
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  //  Copy / Download
+  // ─────────────────────────────────────────────
   async function copyToClipboard(text) {
     try {
       await navigator.clipboard.writeText(text);
@@ -481,197 +699,115 @@
         $('copyIcon').innerHTML = '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>';
         $('copyLabel').textContent = 'Copy prompt';
       }, 1500);
-    } catch (e) {
-      setError('Could not copy to clipboard in this browser.');
+    } catch {
+      showError('Could not copy to clipboard in this browser.');
     }
   }
+
+  // ─────────────────────────────────────────────
+  //  Panel toggles
+  // ─────────────────────────────────────────────
+  $('connectionToggle').addEventListener('click', () => {
+    $('connectionBody').classList.toggle('open');
+    $('connectionChevron').classList.toggle('open');
+  });
+
+  $('advancedToggle').addEventListener('click', () => {
+    $('advancedBody').classList.toggle('open');
+    $('advancedChevron').classList.toggle('open');
+  });
+
+  // ─────────────────────────────────────────────
+  //  Prompt controls
+  // ─────────────────────────────────────────────
+  $('promptInput').addEventListener('input', () => {
+    $('charCount').textContent = $('promptInput').value.length + ' chars';
+  });
+
+  $('surpriseBtn').addEventListener('click', () => {
+    const pick = SURPRISE_PROMPTS[Math.floor(Math.random() * SURPRISE_PROMPTS.length)];
+    $('promptInput').value = pick;
+    $('charCount').textContent = pick.length + ' chars';
+  });
+
+  // ─────────────────────────────────────────────
+  //  Style chips
+  // ─────────────────────────────────────────────
+  const styleChipsEl = $('styleChips');
+  STYLE_PRESETS.filter((s) => s.id !== 'none').forEach((s) => {
+    const btn = document.createElement('button');
+    btn.className  = 'chip';
+    btn.textContent = s.label;
+    btn.dataset.id  = s.id;
+    btn.addEventListener('click', () => {
+      state.styleId = (state.styleId === s.id) ? 'none' : s.id;
+      renderStyleChips();
+    });
+    styleChipsEl.appendChild(btn);
+  });
+
+  function renderStyleChips() {
+    [...styleChipsEl.children].forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.id === state.styleId);
+    });
+  }
+
+  // ─────────────────────────────────────────────
+  //  Aspect swatches
+  // ─────────────────────────────────────────────
+  const aspectRowEl = $('aspectRow');
+  ASPECTS.forEach((a) => {
+    const btn = document.createElement('button');
+    btn.className  = 'aspect-swatch';
+    btn.dataset.id = a.id;
+    btn.title      = a.label + ' · ' + a.w + '×' + a.h;
+    btn.innerHTML  = '<span class="aspect-box" style="width:' + a.bw + 'px;height:' + a.bh + 'px;"></span><span class="aspect-id">' + a.id + '</span>';
+    btn.addEventListener('click', () => { state.aspectId = a.id; renderAspectRow(); });
+    aspectRowEl.appendChild(btn);
+  });
+
+  function renderAspectRow() {
+    [...aspectRowEl.children].forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.id === state.aspectId);
+    });
+  }
+
+  // ─────────────────────────────────────────────
+  //  Darkroom settings
+  // ─────────────────────────────────────────────
+  $('rollSeedBtn').addEventListener('click', () => {
+    $('seedInput').value = Math.floor(Math.random() * 1_000_000_000);
+  });
+
+  // ─────────────────────────────────────────────
+  //  Action buttons
+  // ─────────────────────────────────────────────
+  $('generateBtn').addEventListener('click', generateImage);
+
   $('copyPromptBtn').addEventListener('click', () => {
     if (state.current) copyToClipboard(state.current.prompt);
   });
+
   $('downloadBtn').addEventListener('click', () => {
     if (!state.current) return;
-    const a = document.createElement('a');
-    a.href = state.current.src;
+    const a    = document.createElement('a');
+    a.href     = state.current.src;
     a.download = 'obscura-' + state.current.id + '.png';
     document.body.appendChild(a);
     a.click();
     a.remove();
   });
 
-  // ---- Canvas rendering ----
-  function renderCanvas() {
-    const placeholder = $('placeholderState');
-    const loading = $('loadingState');
-    const imageWrap = $('imageWrap');
-    const safelight = $('safelightDot');
-
-    safelight.classList.toggle('show', state.isGenerating);
-
-    if (state.isGenerating && !state.current) {
-      placeholder.style.display = 'none';
-      loading.style.display = 'block';
-      imageWrap.style.display = 'none';
-    } else if (state.current) {
-      placeholder.style.display = 'none';
-      loading.style.display = 'none';
-      imageWrap.style.display = 'block';
-      imageWrap.classList.toggle('dimmed', state.isGenerating);
-    } else {
-      placeholder.style.display = 'block';
-      loading.style.display = 'none';
-      imageWrap.style.display = 'none';
-    }
-  }
-
-  function renderMeta() {
-    if (!state.current) {
-      $('metaRow').classList.remove('show');
-      return;
-    }
-    $('metaRow').classList.add('show');
-    $('metaSize').textContent = state.current.sizeLabel;
-    $('metaSeed').textContent = 'seed ' + state.current.seedLabel;
-    $('metaTime').textContent = state.current.time;
-  }
-
-  function renderFilmstrip() {
-    const section = $('filmstripSection');
-    const track = $('filmstripTrack');
-    if (state.history.length === 0) {
-      section.classList.remove('show');
-      return;
-    }
-    section.classList.add('show');
-    track.innerHTML = '';
-    state.history.forEach((item) => {
-      const btn = document.createElement('button');
-      btn.className = 'film-thumb' + (state.current && state.current.id === item.id ? ' active' : '');
-      btn.title = item.prompt;
-      const img = document.createElement('img');
-      img.src = item.src;
-      img.alt = item.prompt;
-      btn.appendChild(img);
-      btn.addEventListener('click', () => {
-        state.current = item;
-        showImage(item, false);
-      });
-      track.appendChild(btn);
-    });
-  }
-
-  function showImage(item, animate) {
-    const img = $('currentImg');
-    img.src = item.src;
-    img.alt = item.prompt;
-    const wrap = $('imageWrap');
-    if (animate) {
-      wrap.classList.remove('develop-wrap');
-      void wrap.offsetWidth;
-      wrap.classList.add('develop-wrap');
-    }
-    renderCanvas();
-    renderMeta();
-    renderFilmstrip();
-  }
-
-  function setGenerating(isGenerating) {
-    state.isGenerating = isGenerating;
-    $('generateBtn').disabled = isGenerating;
-    $('generateLabel').textContent = isGenerating ? 'Developing…' : 'Generate';
-    const btnIcon = $('generateBtn').querySelector('svg');
-    btnIcon.outerHTML = isGenerating
-      ? '<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-9-9"/></svg>'
-      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>';
-    renderCanvas();
-  }
-
-  function buildFullPrompt() {
-    const base = $('promptInput').value.trim();
-    if (!base) return '';
-    const preset = STYLE_PRESETS.find((s) => s.id === state.styleId);
-    return preset && preset.modifier ? base + ', ' + preset.modifier : base;
-  }
-
-  // ---- Generate ----
-  async function handleGenerate() {
-    clearError();
-    const apiKey = $('apiKeyInput').value.trim();
-    if (!apiKey) {
-      setError('Add your NVIDIA API key under Connection before generating.');
-      $('connectionBody').classList.add('open');
-      $('connectionChevron').classList.add('open');
-      return;
-    }
-    const fullPrompt = buildFullPrompt();
-    if (!fullPrompt) {
-      setError('Describe what you want to see first.');
-      return;
-    }
-
-    const aspect = ASPECTS.find((a) => a.id === state.aspectId) || ASPECTS[0];
-    const negativePrompt = $('negativePromptInput').value.trim();
-    const seed = $('seedInput').value.trim();
-
-    const body = {
-      model: 'qwen/qwen-image',
-      prompt: fullPrompt,
-      n: 1,
-      size: aspect.w + 'x' + aspect.h,
-      response_format: 'b64_json',
-    };
-    if (negativePrompt) body.negative_prompt = negativePrompt;
-    if (seed) body.seed = Number(seed);
-
-    setGenerating(true);
-    try {
-      const res = await fetch('https://integrate.api.nvidia.com/v1/images/generations', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': 'Bearer ' + apiKey,
-        },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        let detail = res.statusText;
-        try {
-          const errJson = await res.json();
-          detail = (errJson && (errJson.detail || (errJson.error && errJson.error.message))) || JSON.stringify(errJson);
-        } catch (e) {}
-        throw new Error(res.status + ' — ' + detail);
-      }
-
-      const data = await res.json();
-      const b64 = data && data.data && data.data[0] && data.data[0].b64_json;
-      if (!b64) throw new Error('The API responded without image data.');
-
-      const item = {
-        id: Date.now(),
-        src: 'data:image/png;base64,' + b64,
-        prompt: fullPrompt,
-        sizeLabel: aspect.w + '×' + aspect.h,
-        seedLabel: body.seed !== undefined ? String(body.seed) : 'auto',
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-      state.history = [item, ...state.history].slice(0, 16);
-      state.current = item;
-      showImage(item, true);
-    } catch (err) {
-      if (err instanceof TypeError) {
-        setError('The request never reached NVIDIA — most likely a CORS restriction on direct browser calls, or no network access. A small backend proxy between this page and the API usually resolves it.');
-      } else {
-        setError(err.message || 'Something went wrong while generating.');
-      }
-    } finally {
-      setGenerating(false);
-    }
-  }
-
-  $('generateBtn').addEventListener('click', handleGenerate);
-
+  // ─────────────────────────────────────────────
+  //  Init
+  // ─────────────────────────────────────────────
+  renderStyleChips();
+  renderAspectRow();
   renderCanvas();
+
+  // Health-check on load, then every 30 s in the background.
+  checkBackend();
+  setInterval(checkBackend, 30_000);
 </script>
 </body>
 </html>
