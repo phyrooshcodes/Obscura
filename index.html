@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Obscura — Text to Image</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" />
+<style>
+  :root {
+    --bg:#15141A; --panel:#1B1A20; --panel2:#15141A; --border:#2C2933;
+    --text:#EDE9E2; --muted:#9C9690; --faint:#6F6A65;
+    --accent:#E8492C; --accent-hover:#F15A3C; --accent-soft:rgba(232,73,44,0.16);
+    --gold:#D7A552; --swatch:#4A4550;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; }
+  .page { max-width:1100px; margin:0 auto; padding:40px 20px 56px; }
+
+  .site-header { display:flex; align-items:center; gap:12px; margin-bottom:40px; }
+  .logo-icon { width:28px; height:28px; color:var(--accent); flex-shrink:0; }
+  .wordmark { font-family:'Fraunces',Georgia,serif; font-size:24px; font-weight:600; line-height:1; margin:0; }
+  .tagline { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--faint); margin:4px 0 0; letter-spacing:.02em; }
+
+  .grid { display:grid; grid-template-columns:1fr; gap:24px; }
+  @media (min-width:860px) { .grid { grid-template-columns:340px 1fr; gap:32px; } }
+
+  .rail { display:flex; flex-direction:column; gap:20px; }
+
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; }
+  .panel-header-btn {
+    width:100%; display:flex; align-items:center; justify-content:space-between;
+    padding:12px 16px; background:none; border:none; color:var(--text);
+    font-size:14px; cursor:pointer; font-family:inherit;
+  }
+  .panel-header-btn .left { display:flex; align-items:center; gap:8px; }
+  .status-dot { width:6px; height:6px; border-radius:50%; background:#5A3A30; flex-shrink:0; }
+  .status-dot.live { background:#7FA66B; }
+  .chevron { width:16px; height:16px; color:var(--muted); transition:transform .15s ease; flex-shrink:0; }
+  .chevron.open { transform:rotate(180deg); }
+  .panel-body { padding:0 16px 16px; margin-top:-4px; display:none; }
+  .panel-body.open { display:block; }
+
+  .field-label { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted); display:block; margin-bottom:6px; }
+  .input, textarea.input {
+    width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--text);
+    border-radius:6px; padding:9px 12px; font-size:14px; font-family:inherit;
+  }
+  .input::placeholder, textarea.input::placeholder { color:var(--faint); }
+  .input:focus, textarea.input:focus { outline:none; border-color:var(--accent); }
+  textarea.input { resize:none; line-height:1.5; }
+
+  .key-row { display:flex; align-items:center; gap:8px; }
+  .icon-btn {
+    background:var(--panel2); border:1px solid var(--border); border-radius:6px; padding:8px;
+    color:var(--muted); cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .icon-btn:hover { color:var(--text); }
+  .icon-btn svg { width:16px; height:16px; }
+  .hint { font-size:12px; color:var(--faint); line-height:1.6; margin:8px 0 0; }
+  .hint a { color:var(--gold); text-decoration:underline; }
+
+  .prompt-card { padding:16px; }
+  .row-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .text-btn {
+    display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted);
+    background:none; border:none; cursor:pointer; font-family:inherit; padding:0;
+  }
+  .text-btn:hover { color:var(--text); }
+  .text-btn svg { width:14px; height:14px; }
+  .char-count { display:flex; justify-content:flex-end; margin-top:4px; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--faint); }
+
+  .chip-row, .aspect-row { display:flex; flex-wrap:wrap; gap:8px; }
+  .chip {
+    border:1px solid var(--border); color:var(--muted); background:none; border-radius:999px;
+    padding:6px 12px; font-size:12px; cursor:pointer; font-family:inherit; transition:all .15s ease;
+  }
+  .chip:hover { border-color:var(--swatch); color:var(--text); }
+  .chip.active { border-color:var(--accent); color:#F3EEE4; background:var(--accent-soft); }
+
+  .aspect-swatch {
+    border:1px solid var(--border); border-radius:8px; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:6px; padding:8px 12px; background:none;
+    cursor:pointer; transition:all .15s ease;
+  }
+  .aspect-swatch:hover { border-color:var(--swatch); }
+  .aspect-swatch.active { border-color:var(--accent); background:rgba(232,73,44,0.1); }
+  .aspect-box { background:var(--swatch); border-radius:2px; }
+  .aspect-swatch.active .aspect-box { background:var(--accent); }
+  .aspect-id { font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--muted); }
+
+  .seed-row { display:flex; align-items:center; gap:8px; }
+  .small-btn {
+    background:var(--panel2); border:1px solid var(--border); border-radius:6px; padding:9px 12px;
+    font-size:12px; color:var(--muted); cursor:pointer; font-family:inherit; flex-shrink:0;
+  }
+  .small-btn:hover { color:var(--text); }
+
+  .generate-btn {
+    background:var(--accent); color:var(--bg); border:none; border-radius:10px; padding:13px;
+    font-size:14px; font-weight:500; display:flex; align-items:center; justify-content:center;
+    gap:8px; cursor:pointer; font-family:inherit;
+  }
+  .generate-btn:hover:not(:disabled) { background:var(--accent-hover); }
+  .generate-btn:disabled { background:#5A3A30; color:var(--muted); cursor:not-allowed; }
+  .generate-btn svg { width:16px; height:16px; }
+
+  .error-banner {
+    display:none; border-radius:10px; padding:12px 14px; font-size:12px; line-height:1.6;
+    gap:8px; background:rgba(232,73,44,0.1); border:1px solid rgba(232,73,44,0.3); color:#F3EEE4;
+  }
+  .error-banner.show { display:flex; }
+  .error-banner svg { flex-shrink:0; margin-top:2px; color:var(--accent); width:16px; height:16px; }
+
+  .canvas-col { display:flex; flex-direction:column; gap:16px; }
+  .canvas-frame {
+    background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:24px;
+    min-height:420px; display:flex; align-items:center; justify-content:center; position:relative;
+  }
+  @media (min-width:860px) { .canvas-frame { min-height:480px; } }
+
+  .safelight-dot {
+    position:absolute; top:16px; right:16px; width:10px; height:10px; border-radius:50%;
+    background:var(--accent); display:none;
+  }
+  .safelight-dot.show { display:block; animation:pulseGlow 1.5s ease-in-out infinite; }
+  @keyframes pulseGlow {
+    0% { box-shadow:0 0 0 0 rgba(232,73,44,.55); }
+    70% { box-shadow:0 0 0 9px rgba(232,73,44,0); }
+    100% { box-shadow:0 0 0 0 rgba(232,73,44,0); }
+  }
+
+  .placeholder-state, .loading-state { text-align:center; max-width:280px; }
+  .placeholder-state svg { width:32px; height:32px; color:var(--faint); margin:0 auto 12px; display:block; }
+  .placeholder-title { font-family:'Fraunces',serif; font-size:16px; color:var(--muted); margin:0 0 4px; }
+  .placeholder-text { font-size:12px; color:var(--faint); line-height:1.6; margin:0; }
+  .loading-state svg { width:24px; height:24px; color:var(--accent); margin:0 auto 12px; display:block; }
+  .loading-label { font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--muted); }
+
+  .develop-wrap { position:relative; overflow:hidden; border-radius:6px; max-width:100%; }
+  .develop-wrap img { display:block; max-width:100%; max-height:560px; border-radius:6px; animation:developIn 1s ease-out; }
+  @keyframes developIn {
+    0% { opacity:0; filter:brightness(1.8) contrast(.55) saturate(0); }
+    55% { opacity:1; }
+    100% { opacity:1; filter:brightness(1) contrast(1) saturate(1); }
+  }
+  .develop-wrap::after {
+    content:''; position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(243,238,228,0) 0%, rgba(243,238,228,.3) 45%, rgba(243,238,228,0) 62%);
+    transform:translateY(-120%); animation:sweepDown 1s ease-out; pointer-events:none;
+  }
+  @keyframes sweepDown { to { transform:translateY(120%); } }
+  .develop-wrap.dimmed img { opacity:.4; }
+
+  .meta-row {
+    display:none; background:var(--panel); border:1px solid var(--border); border-radius:10px;
+    padding:12px 16px; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  }
+  .meta-row.show { display:flex; }
+  .meta-left { display:flex; align-items:center; gap:12px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted); flex-wrap:wrap; }
+  .meta-left .sep { color:var(--faint); }
+  .meta-actions { display:flex; align-items:center; gap:8px; }
+  .ghost-btn {
+    background:var(--panel2); border:1px solid var(--border); border-radius:6px; padding:7px 12px;
+    font-size:12px; color:var(--muted); cursor:pointer; display:flex; align-items:center; gap:6px; font-family:inherit;
+  }
+  .ghost-btn:hover { color:var(--text); }
+  .ghost-btn svg { width:14px; height:14px; }
+  .solid-btn {
+    background:var(--accent); color:var(--bg); border:none; border-radius:6px; padding:7px 12px;
+    font-size:12px; cursor:pointer; display:flex; align-items:center; gap:6px; font-family:inherit;
+  }
+  .solid-btn:hover { background:var(--accent-hover); }
+  .solid-btn svg { width:14px; height:14px; }
+
+  .filmstrip-section { display:none; }
+  .filmstrip-section.show { display:block; }
+  .filmstrip-track { display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; }
+  .filmstrip-track::-webkit-scrollbar { height:6px; }
+  .filmstrip-track::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+  .film-thumb {
+    border:1px solid var(--border); border-radius:6px; overflow:hidden; flex-shrink:0;
+    width:64px; height:64px; padding:0; cursor:pointer; background:none;
+  }
+  .film-thumb:hover { border-color:var(--swatch); }
+  .film-thumb.active { border-color:var(--accent); }
+  .film-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+
+  .site-footer { margin-top:40px; padding-top:24px; border-top:1px solid var(--border); }
+  .site-footer p { font-size:12px; color:var(--faint); line-height:1.6; max-width:600px; margin:0; }
+
+  .spin { animation:spin 1s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+  <div class="page">
+
+    <header class="site-header">
+      <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"/>
+        <path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/>
+      </svg>
+      <div>
+        <p class="wordmark">Obscura</p>
+        <p class="tagline">text → exposed → developed</p>
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- Control rail -->
+      <div class="rail">
+
+        <!-- Connection -->
+        <div class="panel">
+          <button class="panel-header-btn" id="connectionToggle">
+            <span class="left"><span class="status-dot" id="statusDot"></span>Connection</span>
+            <svg class="chevron open" id="connectionChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="panel-body open" id="connectionBody">
+            <label class="field-label">NVIDIA API key</label>
+            <div class="key-row">
+              <input type="password" id="apiKeyInput" class="input" placeholder="nvapi-••••••••••••••••" style="font-family:'IBM Plex Mono',monospace;" />
+              <button class="icon-btn" id="toggleKeyVisibility" aria-label="Show key">
+                <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <p class="hint">Kept only in this tab's memory — never saved or sent anywhere but directly to NVIDIA. Get a key at <a href="https://build.nvidia.com/qwen/qwen-image" target="_blank" rel="noreferrer">build.nvidia.com</a>.</p>
+          </div>
+        </div>
+
+        <!-- Prompt -->
+        <div class="panel prompt-card">
+          <div class="row-top">
+            <label class="field-label" style="margin:0;">Prompt</label>
+            <button class="text-btn" id="surpriseBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+              Surprise me
+            </button>
+          </div>
+          <textarea id="promptInput" class="input" rows="4" placeholder="A quiet harbor town at first light, fishing boats rocking gently in the mist…"></textarea>
+          <div class="char-count" id="charCount">0 chars</div>
+        </div>
+
+        <!-- Style -->
+        <div>
+          <label class="field-label">Style</label>
+          <div class="chip-row" id="styleChips"></div>
+        </div>
+
+        <!-- Aspect ratio -->
+        <div>
+          <label class="field-label">Frame</label>
+          <div class="aspect-row" id="aspectRow"></div>
+        </div>
+
+        <!-- Advanced -->
+        <div class="panel">
+          <button class="panel-header-btn" id="advancedToggle">
+            <span class="left">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;color:var(--muted);">
+                <line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"/>
+                <line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/>
+                <line x1="4" y1="18" x2="20" y2="18"/><circle cx="11" cy="18" r="2" fill="currentColor" stroke="none"/>
+              </svg>
+              Darkroom settings
+            </span>
+            <svg class="chevron" id="advancedChevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="panel-body" id="advancedBody">
+            <label class="field-label">Negative prompt</label>
+            <input type="text" id="negativePromptInput" class="input" placeholder="blurry, distorted hands, low detail" style="margin-bottom:12px;" />
+            <label class="field-label">Seed</label>
+            <div class="seed-row">
+              <input type="number" id="seedInput" class="input" placeholder="auto" style="font-family:'IBM Plex Mono',monospace;" />
+              <button class="small-btn" id="rollSeedBtn">Roll</button>
+            </div>
+            <p class="hint">Some hosted endpoints may ignore negative prompt or seed. If a run errors right after you set one, clear it and try again.</p>
+          </div>
+        </div>
+
+        <!-- Generate -->
+        <button class="generate-btn" id="generateBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>
+          <span id="generateLabel">Generate</span>
+        </button>
+
+        <div class="error-banner" id="errorBanner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12" y2="16.01"/></svg>
+          <span id="errorText"></span>
+        </div>
+      </div>
+
+      <!-- Canvas -->
+      <div class="canvas-col">
+        <div class="canvas-frame" id="canvasFrame">
+          <span class="safelight-dot" id="safelightDot"></span>
+
+          <div class="placeholder-state" id="placeholderState">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>
+            <p class="placeholder-title">Nothing in the tray yet</p>
+            <p class="placeholder-text">Describe a scene on the left, choose a style and frame, then generate to develop your first print.</p>
+          </div>
+
+          <div class="loading-state" id="loadingState" style="display:none;">
+            <svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-9-9"/></svg>
+            <p class="loading-label">exposing the print…</p>
+          </div>
+
+          <div class="develop-wrap" id="imageWrap" style="display:none;">
+            <img id="currentImg" src="" alt="" />
+          </div>
+        </div>
+
+        <div class="meta-row" id="metaRow">
+          <div class="meta-left">
+            <span id="metaSize"></span><span class="sep">·</span>
+            <span id="metaSeed"></span><span class="sep">·</span>
+            <span id="metaTime"></span>
+          </div>
+          <div class="meta-actions">
+            <button class="ghost-btn" id="copyPromptBtn">
+              <svg id="copyIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span id="copyLabel">Copy prompt</span>
+            </button>
+            <button class="solid-btn" id="downloadBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Download
+            </button>
+          </div>
+        </div>
+
+        <div class="filmstrip-section" id="filmstripSection">
+          <label class="field-label">Session prints</label>
+          <div class="filmstrip-track" id="filmstripTrack"></div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="site-footer">
+      <p>Calls go straight from this browser tab to NVIDIA's hosted Qwen-Image endpoint. If generation fails immediately with a network error rather than an API error message, it's likely a CORS restriction on direct browser calls — routing the request through a small backend proxy resolves that.</p>
+    </footer>
+  </div>
+
+<script>
+  const ASPECTS = [
+    { id:'1:1', label:'Square', w:1328, h:1328, bw:22, bh:22 },
+    { id:'4:3', label:'Landscape', w:1472, h:1104, bw:26, bh:19.5 },
+    { id:'3:4', label:'Portrait', w:1104, h:1472, bw:16.5, bh:22 },
+    { id:'16:9', label:'Widescreen', w:1664, h:928, bw:28, bh:15.75 },
+    { id:'9:16', label:'Story', w:928, h:1664, bw:12.4, bh:22 },
+  ];
+
+  const STYLE_PRESETS = [
+    { id:'none', label:'None', modifier:'' },
+    { id:'photo', label:'Photographic', modifier:'photographic, natural lighting, fine detail, shot on a 50mm lens' },
+    { id:'noir', label:'Film noir', modifier:'black and white film noir, dramatic shadows, heavy grain, high contrast' },
+    { id:'watercolor', label:'Watercolor', modifier:'soft watercolor painting, delicate washes, visible paper texture' },
+    { id:'anime', label:'Anime', modifier:'anime illustration, clean line art, vibrant cel shading' },
+    { id:'3d', label:'3D render', modifier:'octane render, cinematic three-quarter lighting, soft studio shadows' },
+    { id:'cyberpunk', label:'Cyberpunk', modifier:'cyberpunk, neon-lit, dense futuristic city, moody atmosphere' },
+    { id:'oil', label:'Oil painting', modifier:'oil painting, visible brushwork, rich texture, classical composition' },
+  ];
+
+  const SURPRISE_PROMPTS = [
+    "A lighthouse keeper reading by lamplight as a storm rolls in over the cliffs",
+    "An old botanical greenhouse reclaimed by moss, light pouring through cracked glass",
+    "A night train cutting through a snowy valley, windows glowing amber",
+    "A cartographer's desk covered in half-finished maps of an imaginary coastline",
+    "A quiet noodle stall on a rain-slicked street, steam rising under a paper lantern",
+    "A clockmaker's workshop frozen mid-repair, gears suspended in afternoon light",
+    "A coral reef city built into the hull of a sunken ship",
+    "A desert observatory at dawn, telescopes still pointed at a fading moon",
+    "A letterpress printing studio, ink-stained type trays stacked to the ceiling",
+    "A mountain teahouse wrapped in cloud, lanterns swaying in the wind",
+  ];
+
+  const state = {
+    showKey:false,
+    styleId:'none',
+    aspectId:'1:1',
+    isGenerating:false,
+    current:null,
+    history:[],
+  };
+
+  const $ = (id) => document.getElementById(id);
+
+  // ---- Connection panel ----
+  $('connectionToggle').addEventListener('click', () => {
+    $('connectionBody').classList.toggle('open');
+    $('connectionChevron').classList.toggle('open');
+  });
+  $('apiKeyInput').addEventListener('input', () => {
+    $('statusDot').classList.toggle('live', $('apiKeyInput').value.trim().length > 0);
+  });
+  $('toggleKeyVisibility').addEventListener('click', () => {
+    state.showKey = !state.showKey;
+    $('apiKeyInput').type = state.showKey ? 'text' : 'password';
+    $('eyeIcon').innerHTML = state.showKey
+      ? '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/><line x1="3" y1="3" x2="21" y2="21"/>'
+      : '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>';
+  });
+
+  // ---- Prompt ----
+  $('promptInput').addEventListener('input', () => {
+    $('charCount').textContent = $('promptInput').value.length + ' chars';
+  });
+  $('surpriseBtn').addEventListener('click', () => {
+    const pick = SURPRISE_PROMPTS[Math.floor(Math.random() * SURPRISE_PROMPTS.length)];
+    $('promptInput').value = pick;
+    $('charCount').textContent = pick.length + ' chars';
+  });
+
+  // ---- Style chips ----
+  const styleChipsEl = $('styleChips');
+  STYLE_PRESETS.filter(s => s.id !== 'none').forEach((s) => {
+    const btn = document.createElement('button');
+    btn.className = 'chip';
+    btn.textContent = s.label;
+    btn.dataset.id = s.id;
+    btn.addEventListener('click', () => {
+      state.styleId = (state.styleId === s.id) ? 'none' : s.id;
+      renderStyleChips();
+    });
+    styleChipsEl.appendChild(btn);
+  });
+  function renderStyleChips() {
+    [...styleChipsEl.children].forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.id === state.styleId);
+    });
+  }
+
+  // ---- Aspect swatches ----
+  const aspectRowEl = $('aspectRow');
+  ASPECTS.forEach((a) => {
+    const btn = document.createElement('button');
+    btn.className = 'aspect-swatch';
+    btn.dataset.id = a.id;
+    btn.title = a.label + ' · ' + a.w + '×' + a.h;
+    btn.innerHTML = '<span class="aspect-box" style="width:' + a.bw + 'px;height:' + a.bh + 'px;"></span><span class="aspect-id">' + a.id + '</span>';
+    btn.addEventListener('click', () => {
+      state.aspectId = a.id;
+      renderAspectRow();
+    });
+    aspectRowEl.appendChild(btn);
+  });
+  function renderAspectRow() {
+    [...aspectRowEl.children].forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.id === state.aspectId);
+    });
+  }
+  renderStyleChips();
+  renderAspectRow();
+
+  // ---- Advanced panel ----
+  $('advancedToggle').addEventListener('click', () => {
+    $('advancedBody').classList.toggle('open');
+    $('advancedChevron').classList.toggle('open');
+  });
+  $('rollSeedBtn').addEventListener('click', () => {
+    $('seedInput').value = Math.floor(Math.random() * 1000000000);
+  });
+
+  // ---- Error banner ----
+  function setError(msg) {
+    $('errorText').textContent = msg;
+    $('errorBanner').classList.add('show');
+  }
+  function clearError() {
+    $('errorBanner').classList.remove('show');
+  }
+
+  // ---- Copy / Download ----
+  async function copyToClipboard(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      $('copyIcon').innerHTML = '<polyline points="20 6 9 17 4 12"/>';
+      $('copyLabel').textContent = 'Copied';
+      setTimeout(() => {
+        $('copyIcon').innerHTML = '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>';
+        $('copyLabel').textContent = 'Copy prompt';
+      }, 1500);
+    } catch (e) {
+      setError('Could not copy to clipboard in this browser.');
+    }
+  }
+  $('copyPromptBtn').addEventListener('click', () => {
+    if (state.current) copyToClipboard(state.current.prompt);
+  });
+  $('downloadBtn').addEventListener('click', () => {
+    if (!state.current) return;
+    const a = document.createElement('a');
+    a.href = state.current.src;
+    a.download = 'obscura-' + state.current.id + '.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  });
+
+  // ---- Canvas rendering ----
+  function renderCanvas() {
+    const placeholder = $('placeholderState');
+    const loading = $('loadingState');
+    const imageWrap = $('imageWrap');
+    const safelight = $('safelightDot');
+
+    safelight.classList.toggle('show', state.isGenerating);
+
+    if (state.isGenerating && !state.current) {
+      placeholder.style.display = 'none';
+      loading.style.display = 'block';
+      imageWrap.style.display = 'none';
+    } else if (state.current) {
+      placeholder.style.display = 'none';
+      loading.style.display = 'none';
+      imageWrap.style.display = 'block';
+      imageWrap.classList.toggle('dimmed', state.isGenerating);
+    } else {
+      placeholder.style.display = 'block';
+      loading.style.display = 'none';
+      imageWrap.style.display = 'none';
+    }
+  }
+
+  function renderMeta() {
+    if (!state.current) {
+      $('metaRow').classList.remove('show');
+      return;
+    }
+    $('metaRow').classList.add('show');
+    $('metaSize').textContent = state.current.sizeLabel;
+    $('metaSeed').textContent = 'seed ' + state.current.seedLabel;
+    $('metaTime').textContent = state.current.time;
+  }
+
+  function renderFilmstrip() {
+    const section = $('filmstripSection');
+    const track = $('filmstripTrack');
+    if (state.history.length === 0) {
+      section.classList.remove('show');
+      return;
+    }
+    section.classList.add('show');
+    track.innerHTML = '';
+    state.history.forEach((item) => {
+      const btn = document.createElement('button');
+      btn.className = 'film-thumb' + (state.current && state.current.id === item.id ? ' active' : '');
+      btn.title = item.prompt;
+      const img = document.createElement('img');
+      img.src = item.src;
+      img.alt = item.prompt;
+      btn.appendChild(img);
+      btn.addEventListener('click', () => {
+        state.current = item;
+        showImage(item, false);
+      });
+      track.appendChild(btn);
+    });
+  }
+
+  function showImage(item, animate) {
+    const img = $('currentImg');
+    img.src = item.src;
+    img.alt = item.prompt;
+    const wrap = $('imageWrap');
+    if (animate) {
+      wrap.classList.remove('develop-wrap');
+      void wrap.offsetWidth;
+      wrap.classList.add('develop-wrap');
+    }
+    renderCanvas();
+    renderMeta();
+    renderFilmstrip();
+  }
+
+  function setGenerating(isGenerating) {
+    state.isGenerating = isGenerating;
+    $('generateBtn').disabled = isGenerating;
+    $('generateLabel').textContent = isGenerating ? 'Developing…' : 'Generate';
+    const btnIcon = $('generateBtn').querySelector('svg');
+    btnIcon.outerHTML = isGenerating
+      ? '<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-9-9"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>';
+    renderCanvas();
+  }
+
+  function buildFullPrompt() {
+    const base = $('promptInput').value.trim();
+    if (!base) return '';
+    const preset = STYLE_PRESETS.find((s) => s.id === state.styleId);
+    return preset && preset.modifier ? base + ', ' + preset.modifier : base;
+  }
+
+  // ---- Generate ----
+  async function handleGenerate() {
+    clearError();
+    const apiKey = $('apiKeyInput').value.trim();
+    if (!apiKey) {
+      setError('Add your NVIDIA API key under Connection before generating.');
+      $('connectionBody').classList.add('open');
+      $('connectionChevron').classList.add('open');
+      return;
+    }
+    const fullPrompt = buildFullPrompt();
+    if (!fullPrompt) {
+      setError('Describe what you want to see first.');
+      return;
+    }
+
+    const aspect = ASPECTS.find((a) => a.id === state.aspectId) || ASPECTS[0];
+    const negativePrompt = $('negativePromptInput').value.trim();
+    const seed = $('seedInput').value.trim();
+
+    const body = {
+      model: 'qwen/qwen-image',
+      prompt: fullPrompt,
+      n: 1,
+      size: aspect.w + 'x' + aspect.h,
+      response_format: 'b64_json',
+    };
+    if (negativePrompt) body.negative_prompt = negativePrompt;
+    if (seed) body.seed = Number(seed);
+
+    setGenerating(true);
+    try {
+      const res = await fetch('https://integrate.api.nvidia.com/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer ' + apiKey,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        let detail = res.statusText;
+        try {
+          const errJson = await res.json();
+          detail = (errJson && (errJson.detail || (errJson.error && errJson.error.message))) || JSON.stringify(errJson);
+        } catch (e) {}
+        throw new Error(res.status + ' — ' + detail);
+      }
+
+      const data = await res.json();
+      const b64 = data && data.data && data.data[0] && data.data[0].b64_json;
+      if (!b64) throw new Error('The API responded without image data.');
+
+      const item = {
+        id: Date.now(),
+        src: 'data:image/png;base64,' + b64,
+        prompt: fullPrompt,
+        sizeLabel: aspect.w + '×' + aspect.h,
+        seedLabel: body.seed !== undefined ? String(body.seed) : 'auto',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      state.history = [item, ...state.history].slice(0, 16);
+      state.current = item;
+      showImage(item, true);
+    } catch (err) {
+      if (err instanceof TypeError) {
+        setError('The request never reached NVIDIA — most likely a CORS restriction on direct browser calls, or no network access. A small backend proxy between this page and the API usually resolves it.');
+      } else {
+        setError(err.message || 'Something went wrong while generating.');
+      }
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  $('generateBtn').addEventListener('click', handleGenerate);
+
+  renderCanvas();
+</script>
+</body>
+</html>
