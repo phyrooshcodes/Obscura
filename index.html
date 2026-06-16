@@ -218,7 +218,7 @@
           </button>
           <div class="panel-body open" id="connectionBody">
             <span class="field-label" id="connectionLabel">Checking backend…</span>
-            <p class="hint">All generation requests are routed through the Obscura backend. No API keys are required in the browser.</p>
+            <p class="hint">All generation requests are securely routed through the Obscura backend. No API key is required in the browser.</p>
           </div>
         </div>
 
@@ -331,7 +331,7 @@
     </div>
 
     <footer class="site-footer">
-      <p>All generation requests are proxied through the Obscura backend at <code>POST /generate</code> — the frontend never handles API credentials or communicates with NVIDIA directly. If the backend is unavailable the generate button is disabled automatically.</p>
+      <p>All generation requests are proxied through the Obscura backend at <code>POST /generate</code> — the frontend never handles API credentials or communicates with image providers directly. If the backend is unavailable the generate button is disabled automatically.</p>
     </footer>
   </div>
 
@@ -339,9 +339,10 @@
   // ─────────────────────────────────────────────
   //  Configuration
   // ─────────────────────────────────────────────
-  const API_BASE = location.hostname === 'localhost'
-    ? 'http://localhost:8000'
-    : 'https://YOUR_BACKEND_DOMAIN';
+  const API_BASE =
+    location.hostname === "localhost"
+      ? "http://localhost:8002"
+      : "https://obscura-backend-a81t.onrender.com";
 
   // ─────────────────────────────────────────────
   //  Constants
@@ -416,6 +417,37 @@
 
   function clearError() {
     $('errorBanner').classList.remove('show');
+  }
+
+  function messageForStatus(status) {
+    switch (status) {
+      case 502:
+        return 'Cannot reach backend.';
+      case 500:
+        return 'Server error.';
+      case 429:
+        return 'Generation limit reached. Please try again later.';
+      case 400:
+        return 'Invalid request.';
+      default:
+        return 'Image generation failed.';
+    }
+  }
+
+  function friendlyGenerationMessage(err) {
+    if (err instanceof TypeError || err?.name === 'AbortError') {
+      return 'Cannot reach backend.';
+    }
+
+    const allowed = [
+      'Cannot reach backend.',
+      'Server error.',
+      'Generation limit reached. Please try again later.',
+      'Invalid request.',
+      'Image generation failed.',
+    ];
+
+    return allowed.includes(err?.message) ? err.message : 'Image generation failed.';
   }
 
   // ─────────────────────────────────────────────
@@ -569,7 +601,7 @@
   function setGenerating(isGenerating) {
     state.isGenerating = isGenerating;
     syncButtonState();
-    $('generateLabel').textContent = isGenerating ? 'Developing…' : 'Generate';
+    $('generateLabel').textContent = isGenerating ? 'Developing...' : 'Generate';
 
     // Swap the button icon between spinner and logo mark
     const btnIcon = $('generateBtn').querySelector('svg');
@@ -608,7 +640,7 @@
     clearError();
 
     if (!state.backendAvailable) {
-      showError('Backend unavailable. Start the Obscura backend and try again.');
+      showError('Cannot reach backend.');
       return;
     }
 
@@ -622,15 +654,17 @@
     const negativePrompt = $('negativePromptInput').value.trim();
     const seed           = $('seedInput').value.trim();
 
+    const seedValue = seed ? Number(seed) : null;
+
     const body = {
       model:           'qwen/qwen-image',
       prompt:          fullPrompt,
       n:               1,
       size:            aspect.w + 'x' + aspect.h,
       response_format: 'b64_json',
+      negative_prompt: negativePrompt || null,
+      seed:            Number.isFinite(seedValue) ? seedValue : null,
     };
-    if (negativePrompt) body.negative_prompt = negativePrompt;
-    if (seed)           body.seed            = Number(seed);
 
     setGenerating(true);
     try {
@@ -646,12 +680,7 @@
       clearTimeout(timeoutId);
 
       if (!res.ok) {
-        let detail = res.statusText;
-        try {
-          const errJson = await res.json();
-          detail = (errJson && (errJson.detail || (errJson.error && errJson.error.message))) || JSON.stringify(errJson);
-        } catch { /* swallow parse error, keep status text */ }
-        throw new Error(res.status + ' — ' + detail);
+        throw new Error(messageForStatus(res.status));
       }
 
       const data = await res.json();
@@ -663,7 +692,7 @@
         src:       'data:image/png;base64,' + b64,
         prompt:    fullPrompt,
         sizeLabel: aspect.w + '×' + aspect.h,
-        seedLabel: body.seed !== undefined ? String(body.seed) : 'auto',
+        seedLabel: body.seed !== null ? String(body.seed) : 'auto',
         time:      new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }),
       };
       state.history = [item, ...state.history].slice(0, 16);
@@ -671,17 +700,12 @@
       showImage(item, true);
 
     } catch (err) {
-      if (err.name === 'AbortError') {
-        showError('Network timeout. Please try again.');
-      } else if (err instanceof TypeError) {
-        // Network-level failure — assume backend went away
+      if (err instanceof TypeError || err?.name === 'AbortError') {
         state.backendAvailable = false;
         syncButtonState();
         updateConnectionStatus('disconnected');
-        showError('Backend unavailable. Start the Obscura backend and try again.');
-      } else {
-        showError('Image generation failed. ' + (err.message || 'NVIDIA returned an error.'));
       }
+      showError(friendlyGenerationMessage(err));
     } finally {
       setGenerating(false);
     }
